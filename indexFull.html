@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Audio Sender</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background-color: #f0f0f0; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
+        #messages { margin-top: 20px; border: 1px solid #ccc; padding: 10px; width: 80%; max-height: 300px; overflow-y: scroll; background-color: #fff; }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Audio Sender</h1>
+    <button id="startButton">Start Audio Stream</button>
+    <button id="stopButton" disabled>Stop Audio Stream</button>
+    <div id="messages"></div>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const messagesDiv = document.getElementById('messages');
+        let pc;
+        let localStream;
+
+        function log(message) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            messagesDiv.appendChild(p);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        startButton.onclick = async () => {
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            log('Starting audio stream...');
+
+            try {
+                // Request access to microphone
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                log('Microphone access granted.');
+
+                // Create RTCPeerConnection
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+
+                // Add local audio track to peer connection
+                localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, localStream);
+                    log(`Adding local track: ${track.kind}`);
+                });
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        // ICE candidates are exchanged automatically by aiortc usually,
+                        // but this is how you'd send them if needed.
+                        // For simplicity, aiortc handles this well.
+                        // console.log('New ICE candidate:', event.candidate);
+                    }
+                };
+
+                pc.oniceconnectionstatechange = () => {
+                    log(`ICE connection state: ${pc.iceConnectionState}`);
+                };
+
+                pc.onconnectionstatechange = () => {
+                    log(`PeerConnection state: ${pc.connectionState}`);
+                    if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
+                        log('PeerConnection disconnected or closed.');
+                        stopButton.disabled = true;
+                        startButton.disabled = false;
+                        if (localStream) {
+                            localStream.getTracks().forEach(track => track.stop());
+                        }
+                        pc = null;
+                        localStream = null;
+                    }
+                };
+
+                // Create offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                log('Sending SDP offer to Python server...');
+
+                // Send offer to Python server
+                const response = await fetch('http://localhost:8080/offer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sdp: pc.localDescription.sdp,
+                        type: pc.localDescription.type
+                    })
+                });
+
+                const answer = await response.json();
+                log('Received SDP answer from Python server.');
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                log('WebRTC connection established!');
+
+            } catch (error) {
+                console.error('Error starting WebRTC:', error);
+                log(`Error: ${error.message}`);
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        };
+
+        stopButton.onclick = () => {
+            if (pc) {
+                pc.close();
+                log('PeerConnection closed by client.');
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                log('Local audio stream stopped.');
+            }
+            stopButton.disabled = true;
+            startButton.disabled = false;
+        };
+    </script>
+</body>
+</html>
