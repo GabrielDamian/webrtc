@@ -13,6 +13,10 @@ pcs = set()
 audio_queue_1 = asyncio.Queue()
 audio_queue_2 = asyncio.Queue()
 
+# Shared state between threads
+active_queue_num = asyncio.Event()  # False = Queue 1, True = Queue 2
+active_queue_num.clear()  # Start with Queue 1
+
 SAMPLE_RATE = 16000
 
 # Setup root logger to WARNING to suppress less important logs
@@ -33,9 +37,14 @@ class AudioRelayTrack(MediaStreamTrack):
         audio_bytes = b"".join(bytes(plane) for plane in frame.planes)
         
         current_time = time.time()
-        if current_time - self.last_switch_time >= 5.0:
+        if current_time - self.last_switch_time >= 4.0:
             self.use_queue_1 = not self.use_queue_1
             self.last_switch_time = current_time
+            # Update the shared state
+            if self.use_queue_1:
+                active_queue_num.clear()  # Queue 1
+            else:
+                active_queue_num.set()    # Queue 2
             print(f"Switching to queue {'1' if self.use_queue_1 else '2'}")
 
         if self.use_queue_1:
@@ -49,9 +58,12 @@ async def queue_monitor():
     try:
         print("Queue monitor started")
         while True:
-            q1_size = audio_queue_1.qsize()
-            q2_size = audio_queue_2.qsize()
-            print(f"Queue sizes - Queue 1: {q1_size} items, Queue 2: {q2_size} items")
+            # Check which queue is active
+            is_queue_2 = active_queue_num.is_set()
+            active_queue = audio_queue_2 if is_queue_2 else audio_queue_1
+            queue_size = active_queue.qsize()
+            
+            print(f"Active Queue {2 if is_queue_2 else 1} size: {queue_size} items")
             await asyncio.sleep(1)  # Update every second
     except Exception as e:
         print(f"Error in queue monitor: {e}")
