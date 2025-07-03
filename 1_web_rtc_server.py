@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack, RTCIceServer, RTCConfiguration
 import aiohttp_cors
@@ -9,7 +10,8 @@ import os
 load_dotenv()
 
 pcs = set()
-audio_queue = asyncio.Queue()
+audio_queue_1 = asyncio.Queue()
+audio_queue_2 = asyncio.Queue()
 
 SAMPLE_RATE = 16000
 
@@ -23,32 +25,36 @@ class AudioRelayTrack(MediaStreamTrack):
     def __init__(self, track):
         super().__init__()
         self.track = track
+        self.last_switch_time = time.time()
+        self.use_queue_1 = True
 
     async def recv(self):
         frame = await self.track.recv()
         audio_bytes = b"".join(bytes(plane) for plane in frame.planes)
-        await audio_queue.put(audio_bytes)
-        print(f"[AudioRelayTrack] Added frame to queue. Queue size now: {audio_queue.qsize()}")
+        
+        current_time = time.time()
+        if current_time - self.last_switch_time >= 5.0:
+            self.use_queue_1 = not self.use_queue_1
+            self.last_switch_time = current_time
+            print(f"Switching to queue {'1' if self.use_queue_1 else '2'}")
+
+        if self.use_queue_1:
+            await audio_queue_1.put(audio_bytes)
+        else:
+            await audio_queue_2.put(audio_bytes)
+
         return frame
 
-async def audio_worker():
+async def queue_monitor():
     try:
-        print("Audio worker started")
+        print("Queue monitor started")
         while True:
-            # Wait for data in the queue
-            chunk = await audio_queue.get()
-            current_queue_size = audio_queue.qsize()
-            
-            if chunk is None:
-                print("Audio queue received stop signal")
-                break
-                
-            print(f"Processing audio chunk, size: {len(chunk)} bytes. Remaining items in queue: {current_queue_size}")
-            
-        print("Audio worker finished")
-
+            q1_size = audio_queue_1.qsize()
+            q2_size = audio_queue_2.qsize()
+            print(f"Queue sizes - Queue 1: {q1_size} items, Queue 2: {q2_size} items")
+            await asyncio.sleep(1)  # Update every second
     except Exception as e:
-        print(f"Error in audio_worker: {e}")
+        print(f"Error in queue monitor: {e}")
 
 async def offer(request):
     print("[offer] Received new offer request")
@@ -85,18 +91,21 @@ async def offer(request):
     })
 
 async def on_startup(app):
-    print("[app] Starting audio worker task")
-    app['audio_task'] = asyncio.create_task(audio_worker())
+    print("[app] Starting queue monitor task")
+    app['monitor_task'] = asyncio.create_task(queue_monitor())
 
 async def on_shutdown(app):
     print("[app] Shutting down PeerConnections")
     coros = [pc.close() for pc in pcs]
     await asyncio.gather(*coros)
 
-    print("[app] Stopping audio worker")
-    await audio_queue.put(None)  # signal for stopping worker
-    if 'audio_task' in app:
-        await app['audio_task']
+    print("[app] Stopping queue monitor")
+    if 'monitor_task' in app:
+        app['monitor_task'].cancel()
+        try:
+            await app['monitor_task']
+        except asyncio.CancelledError:
+            pass
 
 app = web.Application()
 
