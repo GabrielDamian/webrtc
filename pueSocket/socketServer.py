@@ -16,6 +16,8 @@ from typing import List
 import socket
 import pickle
 import json
+import boto3
+import base64
 
 # Audio configuration
 SAMPLE_RATE = 16000
@@ -32,12 +34,30 @@ class TranscriptionItem:
     text: str
     timestamp: datetime
 
+async def text_to_speech(text):
+    try:
+        polly_client = boto3.client('polly', region_name=REGION)
+        response = polly_client.synthesize_speech(
+            Text=text,
+            OutputFormat='mp3',
+            VoiceId='Joanna'
+        )
+        
+        # Get audio data from response
+        if "AudioStream" in response:
+            # Convert audio stream to base64 for sending over WebSocket
+            audio_data = response['AudioStream'].read()
+            return base64.b64encode(audio_data).decode('utf-8')
+    except Exception as e:
+        print(f"Error in text_to_speech: {e}")
+        return None
+
 class TranscriptionBuffer:
     def __init__(self):
         self.items = []
         self.lock = threading.Lock()
         self.last_addition_time = None
-        self.websocket = None  # Store WebSocket connection
+        self.websocket = None
 
     def set_websocket(self, websocket):
         self.websocket = websocket
@@ -95,14 +115,21 @@ async def send_to_receiver(transcriptions, websocket):
                 break
             response_data += chunk
 
-        # Unpickle and send response to WebSocket client
+        # Process response and convert to speech
         if response_data:
             response = pickle.loads(response_data)
-            await websocket.send(json.dumps({
-                'type': 'server_response',
-                'message': response
-            }))
-            print(f"Forwarded response to client: {response}")
+            print(f"Received response from second server: {response}")
+            
+            # Convert text to speech
+            audio_base64 = await text_to_speech(response)
+            if audio_base64:
+                # Send both text and audio to client
+                await websocket.send(json.dumps({
+                    'type': 'server_response',
+                    'message': response,
+                    'audio': audio_base64
+                }))
+                print(f"Forwarded response and audio to client")
         
     except Exception as e:
         print(f"Error communicating with receiver: {e}")
@@ -153,7 +180,6 @@ async def monitor_transcriptions(websocket):
         try:
             items = transcription_buffer.get_items()
             if items and transcription_buffer.time_since_last_addition() >= 3:
-                # If there are items and no new items for 3 seconds, send them
                 await send_to_receiver(items, websocket)
                 transcription_buffer.clear_items()
             await asyncio.sleep(1)
@@ -167,7 +193,6 @@ async def handle_websocket(websocket):
     print("Client connected")
     stream_handler = AudioStreamHandler()
     
-    # Start the monitoring task for this connection
     monitor_task = asyncio.create_task(monitor_transcriptions(websocket))
     
     try:
@@ -183,7 +208,7 @@ async def handle_websocket(websocket):
 async def main():
     async with websockets.serve(handle_websocket, "localhost", 8765):
         print("WebSocket server started on ws://localhost:8765")
-        await asyncio.Future()  # run forever
+        await asyncio.Future()
 
 if __name__ == "__main__":
     try:

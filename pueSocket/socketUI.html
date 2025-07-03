@@ -40,6 +40,20 @@
             background-color: white;
             border-left: 3px solid #4CAF50;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .play-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .play-button:hover {
+            background-color: #45a049;
         }
     </style>
 </head>
@@ -56,13 +70,29 @@
         const recordButton = document.getElementById('recordButton');
         const responseContainer = document.getElementById('responseContainer');
 
-        function addResponse(response) {
+        function playAudio(audioData) {
+            // Convert base64 to audio buffer and play
+            const audio = new Audio('data:audio/mp3;base64,' + audioData);
+            audio.play().catch(e => console.error('Error playing audio:', e));
+        }
+
+        function addResponse(response, audioData) {
             const responseElement = document.createElement('div');
             responseElement.className = 'response-item';
-            responseElement.textContent = response;
-            responseContainer.appendChild(responseElement);
             
-            // Scroll to the bottom to show latest response
+            const textSpan = document.createElement('span');
+            textSpan.textContent = response;
+            responseElement.appendChild(textSpan);
+
+            if (audioData) {
+                const playButton = document.createElement('button');
+                playButton.className = 'play-button';
+                playButton.textContent = 'Play Response';
+                playButton.onclick = () => playAudio(audioData);
+                responseElement.appendChild(playButton);
+            }
+
+            responseContainer.appendChild(responseElement);
             responseContainer.scrollTop = responseContainer.scrollHeight;
         }
 
@@ -95,7 +125,7 @@
                     try {
                         const data = JSON.parse(event.data);
                         if (data.type === 'server_response') {
-                            addResponse(data.message);
+                            addResponse(data.message, data.audio);
                         }
                     } catch (e) {
                         console.error('Error processing server message:', e);
