@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import time
+import wave
+from datetime import datetime
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack, RTCIceServer, RTCConfiguration
 import aiohttp_cors
@@ -18,10 +20,24 @@ active_queue_num = asyncio.Event()  # False = Queue 1, True = Queue 2
 active_queue_num.clear()  # Start with Queue 1
 
 SAMPLE_RATE = 16000
+CHANNELS = 1
+SAMPLE_WIDTH = 2  # 16-bit audio
 
 # Setup root logger to WARNING to suppress less important logs
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("webrtc")
+
+def save_audio_chunk(audio_data, queue_num):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"queue_{queue_num}_chunk_{timestamp}.wav"
+    
+    with wave.open(filename, 'wb') as wav_file:
+        wav_file.setnchannels(CHANNELS)
+        wav_file.setsampwidth(SAMPLE_WIDTH)
+        wav_file.setframerate(SAMPLE_RATE)
+        wav_file.writeframes(audio_data)
+    
+    print(f"Saved audio chunk to {filename}")
 
 class AudioRelayTrack(MediaStreamTrack):
     kind = "audio"
@@ -37,7 +53,7 @@ class AudioRelayTrack(MediaStreamTrack):
         audio_bytes = b"".join(bytes(plane) for plane in frame.planes)
         
         current_time = time.time()
-        if current_time - self.last_switch_time >= 4.0:
+        if current_time - self.last_switch_time >= 2.0:
             self.use_queue_1 = not self.use_queue_1
             self.last_switch_time = current_time
             # Update the shared state
@@ -60,11 +76,21 @@ async def queue_monitor():
         while True:
             # Check which queue is active
             is_queue_2 = active_queue_num.is_set()
-            active_queue = audio_queue_2 if is_queue_2 else audio_queue_1
-            queue_size = active_queue.qsize()
+            inactive_queue = audio_queue_1 if is_queue_2 else audio_queue_2
+            inactive_queue_num = 1 if is_queue_2 else 2
             
-            print(f"Active Queue {2 if is_queue_2 else 1} size: {queue_size} items")
-            await asyncio.sleep(1)  # Update every second
+            # Collect all chunks from inactive queue
+            all_chunks = []
+            while not inactive_queue.empty():
+                chunk = await inactive_queue.get()
+                all_chunks.append(chunk)
+            
+            # If we collected any chunks, save them to a WAV file
+            if all_chunks:
+                combined_audio = b"".join(all_chunks)
+                save_audio_chunk(combined_audio, inactive_queue_num)
+            
+            await asyncio.sleep(0.1)  # Small delay to prevent CPU overload
     except Exception as e:
         print(f"Error in queue monitor: {e}")
 
