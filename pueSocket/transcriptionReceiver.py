@@ -35,8 +35,15 @@ class TranscriptionReceiver:
                     for item in transcriptions:
                         print(f"[{item['timestamp']}] {item['text']}")
                     
+                    # Send back the hardcoded response
+                    response = "dummy server response"
+                    response_data = pickle.dumps(response)
+                    size = len(response_data)
+                    client_socket.send(size.to_bytes(8, 'big'))
+                    client_socket.sendall(response_data)
+                    
             except Exception as e:
-                print(f"Error receiving data: {e}")
+                print(f"Error handling data: {e}")
             finally:
                 client_socket.close()
 

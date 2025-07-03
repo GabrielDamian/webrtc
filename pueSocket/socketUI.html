@@ -25,16 +25,46 @@
         #recordButton.recording {
             background-color: #f44336;
         }
+        #responseContainer {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-width: 300px;
+            min-height: 100px;
+            background-color: #f9f9f9;
+        }
+        .response-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: white;
+            border-left: 3px solid #4CAF50;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
     <button id="recordButton">Start Recording</button>
+    <div id="responseContainer">
+        <h3>Server Responses</h3>
+    </div>
 
     <script>
         let isRecording = false;
         let mediaRecorder;
         let socket;
         const recordButton = document.getElementById('recordButton');
+        const responseContainer = document.getElementById('responseContainer');
+
+        function addResponse(response) {
+            const responseElement = document.createElement('div');
+            responseElement.className = 'response-item';
+            responseElement.textContent = response;
+            responseContainer.appendChild(responseElement);
+            
+            // Scroll to the bottom to show latest response
+            responseContainer.scrollTop = responseContainer.scrollHeight;
+        }
 
         async function startRecording() {
             try {
@@ -47,7 +77,6 @@
                     } 
                 });
 
-                // Create an AudioContext to handle the audio processing
                 const audioContext = new AudioContext({
                     sampleRate: 16000
                 });
@@ -58,23 +87,28 @@
 
                 socket.onopen = () => {
                     console.log('WebSocket connection established');
-                    // Connect the audio processing nodes
                     source.connect(processor);
                     processor.connect(audioContext.destination);
                 };
 
+                socket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'server_response') {
+                            addResponse(data.message);
+                        }
+                    } catch (e) {
+                        console.error('Error processing server message:', e);
+                    }
+                };
+
                 processor.onaudioprocess = (e) => {
                     if (socket.readyState === WebSocket.OPEN) {
-                        // Get the raw audio data
                         const inputData = e.inputBuffer.getChannelData(0);
-                        
-                        // Convert float32 to 16-bit PCM
                         const pcmData = new Int16Array(inputData.length);
                         for (let i = 0; i < inputData.length; i++) {
                             pcmData[i] = inputData[i] * 0x7FFF;
                         }
-                        
-                        // Send the PCM data to the server
                         socket.send(pcmData.buffer);
                     }
                 };

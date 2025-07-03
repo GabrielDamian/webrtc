@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import List
 import socket
 import pickle
+import json
 
 # Audio configuration
 SAMPLE_RATE = 16000
@@ -36,6 +37,10 @@ class TranscriptionBuffer:
         self.items = []
         self.lock = threading.Lock()
         self.last_addition_time = None
+        self.websocket = None  # Store WebSocket connection
+
+    def set_websocket(self, websocket):
+        self.websocket = websocket
 
     def add_item(self, text: str):
         with self.lock:
@@ -60,7 +65,7 @@ class TranscriptionBuffer:
                 return float('inf')
             return time.time() - self.last_addition_time
 
-def send_to_receiver(transcriptions):
+async def send_to_receiver(transcriptions, websocket):
     try:
         # Create a new socket connection
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -77,9 +82,30 @@ def send_to_receiver(transcriptions):
         client_socket.sendall(data)
         
         print(f"Sent {len(transcriptions)} transcriptions to receiver")
+
+        # Receive response size
+        response_size_data = client_socket.recv(8)
+        response_size = int.from_bytes(response_size_data, 'big')
+
+        # Receive response data
+        response_data = b""
+        while len(response_data) < response_size:
+            chunk = client_socket.recv(min(response_size - len(response_data), 4096))
+            if not chunk:
+                break
+            response_data += chunk
+
+        # Unpickle and send response to WebSocket client
+        if response_data:
+            response = pickle.loads(response_data)
+            await websocket.send(json.dumps({
+                'type': 'server_response',
+                'message': response
+            }))
+            print(f"Forwarded response to client: {response}")
         
     except Exception as e:
-        print(f"Error sending to receiver: {e}")
+        print(f"Error communicating with receiver: {e}")
     finally:
         client_socket.close()
 
@@ -122,18 +148,27 @@ class AudioStreamHandler:
         if self.processing_task:
             await self.processing_task
 
-def monitor_transcriptions():
+async def monitor_transcriptions(websocket):
     while True:
-        items = transcription_buffer.get_items()
-        if items and transcription_buffer.time_since_last_addition() >= 2:
-            # If there are items and no new items for 3 seconds, send them
-            send_to_receiver(items)
-            transcription_buffer.clear_items()
-        time.sleep(1)
+        try:
+            items = transcription_buffer.get_items()
+            if items and transcription_buffer.time_since_last_addition() >= 3:
+                # If there are items and no new items for 3 seconds, send them
+                await send_to_receiver(items, websocket)
+                transcription_buffer.clear_items()
+            await asyncio.sleep(1)
+        except websockets.exceptions.ConnectionClosed:
+            break
+        except Exception as e:
+            print(f"Error in monitor_transcriptions: {e}")
+            break
 
 async def handle_websocket(websocket):
     print("Client connected")
     stream_handler = AudioStreamHandler()
+    
+    # Start the monitoring task for this connection
+    monitor_task = asyncio.create_task(monitor_transcriptions(websocket))
     
     try:
         async for message in websocket:
@@ -142,14 +177,10 @@ async def handle_websocket(websocket):
     except websockets.exceptions.ConnectionClosed:
         print("Client disconnected")
     finally:
+        monitor_task.cancel()
         await stream_handler.close()
 
 async def main():
-    # Start the monitoring thread
-    monitor_thread = threading.Thread(target=monitor_transcriptions, daemon=True)
-    monitor_thread.start()
-
-    # Start the WebSocket server
     async with websockets.serve(handle_websocket, "localhost", 8765):
         print("WebSocket server started on ws://localhost:8765")
         await asyncio.Future()  # run forever
