@@ -11,6 +11,7 @@
             margin: 0;
             padding: 20px;
             font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
         }
         #recordButton {
             padding: 20px 40px;
@@ -32,29 +33,46 @@
             border-radius: 5px;
             min-width: 300px;
             min-height: 100px;
-            background-color: #f9f9f9;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .response-item {
             margin: 10px 0;
-            padding: 10px;
-            background-color: white;
-            border-left: 3px solid #4CAF50;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .wave-container {
+            height: 50px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+            gap: 3px;
         }
-        .play-button {
+        .wave-bar {
+            width: 3px;
+            height: 20px;
             background-color: #4CAF50;
-            color: white;
-            border: none;
             border-radius: 3px;
-            padding: 5px 10px;
-            cursor: pointer;
+            opacity: 0.5;
         }
-        .play-button:hover {
-            background-color: #45a049;
+        .wave-container.playing .wave-bar {
+            animation: wave 1s infinite ease-in-out;
         }
+        @keyframes wave {
+            0%, 100% { height: 20px; }
+            50% { height: 40px; }
+        }
+        .wave-container .wave-bar:nth-child(1) { animation-delay: 0.0s; }
+        .wave-container .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-container .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-container .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-container .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .wave-container .wave-bar:nth-child(6) { animation-delay: 0.5s; }
+        .wave-container .wave-bar:nth-child(7) { animation-delay: 0.6s; }
+        .wave-container .wave-bar:nth-child(8) { animation-delay: 0.7s; }
     </style>
 </head>
 <body>
@@ -70,26 +88,51 @@
         const recordButton = document.getElementById('recordButton');
         const responseContainer = document.getElementById('responseContainer');
 
-        function playAudio(audioData) {
-            // Convert base64 to audio buffer and play
+        function createWaveAnimation() {
+            const waveContainer = document.createElement('div');
+            waveContainer.className = 'wave-container';
+            
+            // Create 8 bars for the wave animation
+            for (let i = 0; i < 8; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'wave-bar';
+                waveContainer.appendChild(bar);
+            }
+            
+            return waveContainer;
+        }
+
+        function playAudio(audioData, waveContainer) {
             const audio = new Audio('data:audio/mp3;base64,' + audioData);
-            audio.play().catch(e => console.error('Error playing audio:', e));
+            
+            audio.onplay = () => {
+                waveContainer.classList.add('playing');
+            };
+            
+            audio.onended = () => {
+                waveContainer.classList.remove('playing');
+            };
+
+            audio.play().catch(e => {
+                console.error('Error playing audio:', e);
+                waveContainer.classList.remove('playing');
+            });
         }
 
         function addResponse(response, audioData) {
             const responseElement = document.createElement('div');
             responseElement.className = 'response-item';
             
-            const textSpan = document.createElement('span');
-            textSpan.textContent = response;
-            responseElement.appendChild(textSpan);
+            const textElement = document.createElement('div');
+            textElement.textContent = response;
+            responseElement.appendChild(textElement);
 
             if (audioData) {
-                const playButton = document.createElement('button');
-                playButton.className = 'play-button';
-                playButton.textContent = 'Play Response';
-                playButton.onclick = () => playAudio(audioData);
-                responseElement.appendChild(playButton);
+                const waveContainer = createWaveAnimation();
+                responseElement.appendChild(waveContainer);
+                
+                // Automatically play the audio when received
+                playAudio(audioData, waveContainer);
             }
 
             responseContainer.appendChild(responseElement);

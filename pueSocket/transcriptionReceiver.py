@@ -3,12 +3,24 @@ import pickle
 import json
 from datetime import datetime
 
+# Server configuration
+HOST = 'localhost'
+PORT = 5001  # Changed from 5000 to 5001
+
 class TranscriptionReceiver:
-    def __init__(self, host='localhost', port=5000):
+    def __init__(self, host=HOST, port=PORT):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((host, port))
         self.server_socket.listen(1)
         print(f"Transcription receiver listening on {host}:{port}")
+
+    def generate_response(self, transcriptions):
+        # Combine all transcriptions into one text
+        print("Magic here:",transcriptions)
+        # EXPERMENTAL: Combine all transcriptions into one text
+        # combined_text = " ".join(item['text'] for item in transcriptions)
+        combined_text = transcriptions[-1]['text']
+        return f"Generated Response to: {combined_text}"
 
     def start(self):
         while True:
@@ -28,15 +40,18 @@ class TranscriptionReceiver:
                         break
                     data += chunk
 
-                # Unpickle the data
+                # Unpickle the data and generate response
                 if data:
                     transcriptions = pickle.loads(data)
                     print("\n=== Received Transcriptions ===")
                     for item in transcriptions:
                         print(f"[{item['timestamp']}] {item['text']}")
                     
-                    # Send back the hardcoded response
-                    response = "dummy server response"
+                    # Generate response based on received transcriptions
+                    response = self.generate_response(transcriptions)
+                    print(f"\nGenerated response: {response}")
+                    
+                    # Send back the response
                     response_data = pickle.dumps(response)
                     size = len(response_data)
                     client_socket.send(size.to_bytes(8, 'big'))

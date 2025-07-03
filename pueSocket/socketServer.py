@@ -25,9 +25,10 @@ BYTES_PER_SAMPLE = 2
 CHANNEL_NUMS = 1
 REGION = "eu-west-1"
 
-# Transcription receiver configuration
+# Server configuration
+WEBSOCKET_PORT = 8765  # Port for WebSocket server (browser connection)
 RECEIVER_HOST = 'localhost'
-RECEIVER_PORT = 5000
+RECEIVER_PORT = 5001   # Port for second server connection
 
 @dataclass
 class TranscriptionItem:
@@ -43,9 +44,7 @@ async def text_to_speech(text):
             VoiceId='Joanna'
         )
         
-        # Get audio data from response
         if "AudioStream" in response:
-            # Convert audio stream to base64 for sending over WebSocket
             audio_data = response['AudioStream'].read()
             return base64.b64encode(audio_data).decode('utf-8')
     except Exception as e:
@@ -179,7 +178,7 @@ async def monitor_transcriptions(websocket):
     while True:
         try:
             items = transcription_buffer.get_items()
-            if items and transcription_buffer.time_since_last_addition() >= 3:
+            if items and transcription_buffer.time_since_last_addition() >= 1:
                 await send_to_receiver(items, websocket)
                 transcription_buffer.clear_items()
             await asyncio.sleep(1)
@@ -206,8 +205,8 @@ async def handle_websocket(websocket):
         await stream_handler.close()
 
 async def main():
-    async with websockets.serve(handle_websocket, "localhost", 8765):
-        print("WebSocket server started on ws://localhost:8765")
+    async with websockets.serve(handle_websocket, "localhost", WEBSOCKET_PORT):
+        print(f"WebSocket server started on ws://localhost:{WEBSOCKET_PORT}")
         await asyncio.Future()
 
 if __name__ == "__main__":
