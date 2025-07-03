@@ -6,42 +6,16 @@ import aiohttp_cors
 from dotenv import load_dotenv
 import os
 
-from amazon_transcribe.client import TranscribeStreamingClient
-from amazon_transcribe.handlers import TranscriptResultStreamHandler
-from amazon_transcribe.model import TranscriptEvent
-
 load_dotenv()
 
 pcs = set()
 audio_queue = asyncio.Queue()
 
 SAMPLE_RATE = 16000
-REGION = "us-west-2"
 
 # Setup root logger to WARNING to suppress less important logs
 logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger("webrtc-aws")
-
-# Create dedicated AWS logger for transcribe-related info at INFO level
-logger_aws = logging.getLogger("aws-transcribe")
-logger_aws.setLevel(logging.INFO)
-
-# Add simple console handler for aws logger to ensure output
-if not logger_aws.hasHandlers():
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger_aws.addHandler(ch)
-    logger_aws.propagate = False
-
-class MyEventHandler(TranscriptResultStreamHandler):
-    async def handle_transcript_event(self, transcript_event: TranscriptEvent):
-        logger_aws.info("handle_transcript_event called")
-        logger_aws.info("handle_transcript_event called")
-        for result in transcript_event.transcript.results:
-            for alt in result.alternatives:
-                logger_aws.info(f"AWS Transcribe: {alt.transcript}")
+logger = logging.getLogger("webrtc")
 
 class AudioRelayTrack(MediaStreamTrack):
     kind = "audio"
@@ -53,45 +27,28 @@ class AudioRelayTrack(MediaStreamTrack):
     async def recv(self):
         frame = await self.track.recv()
         audio_bytes = b"".join(bytes(plane) for plane in frame.planes)
-        print(f"[AudioRelayTrack] Received audio frame, size: {len(audio_bytes)} bytes")
         await audio_queue.put(audio_bytes)
+        print(f"[AudioRelayTrack] Added frame to queue. Queue size now: {audio_queue.qsize()}")
         return frame
 
-async def aws_transcribe_worker():
+async def audio_worker():
     try:
-        logger_aws.info("AWS Transcribe worker started")
-        client = TranscribeStreamingClient(region=REGION)
-
-        stream = await client.start_stream_transcription(
-            language_code="en-US",
-            media_sample_rate_hz=SAMPLE_RATE,
-            media_encoding="pcm",
-        )
-
-        async def send_audio():
-            logger_aws.info("Started sending audio to AWS Transcribe")
-            while True:
-                logger_aws.info(f"Audio queue size: {audio_queue.qsize()}")
-                chunk = await audio_queue.get()
-                if chunk is None:
-                    logger_aws.info("Audio queue received stop signal")
-                    break
-                logger_aws.info(f"Sending audio chunk to AWS Transcribe, size: {len(chunk)} bytes, queue size: {audio_queue.qsize()}")
-                try:
-                    await stream.input_stream.send_audio_event(audio_chunk=chunk)
-                except Exception as e:
-                    logger_aws.error(f"Error sending audio chunk to AWS Transcribe: {e}", exc_info=True)
-                logger_aws.info(f"Sending audio chunk to AWS Transcribe, size: {len(chunk)} bytes")
-                await stream.input_stream.send_audio_event(audio_chunk=chunk)
-            await stream.input_stream.end_stream()
-            logger_aws.info("Finished sending audio to AWS Transcribe")
-
-        handler = MyEventHandler(stream.output_stream)
-        await asyncio.gather(send_audio(), handler.handle_events())
-        logger_aws.info("AWS Transcribe worker finished")
+        print("Audio worker started")
+        while True:
+            # Wait for data in the queue
+            chunk = await audio_queue.get()
+            current_queue_size = audio_queue.qsize()
+            
+            if chunk is None:
+                print("Audio queue received stop signal")
+                break
+                
+            print(f"Processing audio chunk, size: {len(chunk)} bytes. Remaining items in queue: {current_queue_size}")
+            
+        print("Audio worker finished")
 
     except Exception as e:
-        logger_aws.error(f"Error in aws_transcribe_worker: {e}", exc_info=True)
+        print(f"Error in audio_worker: {e}")
 
 async def offer(request):
     print("[offer] Received new offer request")
@@ -128,18 +85,18 @@ async def offer(request):
     })
 
 async def on_startup(app):
-    print("[app] Starting AWS transcribe worker task")
-    app['aws_task'] = asyncio.create_task(aws_transcribe_worker())
+    print("[app] Starting audio worker task")
+    app['audio_task'] = asyncio.create_task(audio_worker())
 
 async def on_shutdown(app):
     print("[app] Shutting down PeerConnections")
     coros = [pc.close() for pc in pcs]
     await asyncio.gather(*coros)
 
-    print("[app] Stopping AWS transcribe worker")
+    print("[app] Stopping audio worker")
     await audio_queue.put(None)  # signal for stopping worker
-    if 'aws_task' in app:
-        await app['aws_task']
+    if 'audio_task' in app:
+        await app['audio_task']
 
 app = web.Application()
 
