@@ -3,7 +3,6 @@
 <head>
     <title>Audio Transcribe</title>
     <style>
-        /* Previous styles remain the same until new additions */
         body {
             display: flex;
             flex-direction: column;
@@ -14,7 +13,6 @@
             font-family: Arial, sans-serif;
             background-color: #f0f2f5;
         }
-        /* ... other existing styles ... */
         .end-call-button {
             width: 30px;
             height: 30px;
@@ -27,6 +25,8 @@
             left: 50%;
             transform: translateX(-50%);
             display: none;
+            border: 1px solid white;
+            border-radius: 50%;;
         }
         .end-call-button img {
             width: 100%;
@@ -35,11 +35,10 @@
         }
         .call-ended-text {
             display: none;
-            color: #f44336;
+            color: #ffffff;
             font-weight: bold;
             margin: 10px 0;
         }
-        /* Rest of the existing styles */
         #recordButton {
             width: 50px;
             height: 50px;
@@ -68,6 +67,8 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             padding: 15px;
             text-align: center;
+            background: #E40002;
+            background: linear-gradient(90deg, rgba(228, 0, 2, 1) 0%, rgba(255, 153, 155, 1) 100%);
         }
         
         /* New styles for in-call UI */
@@ -95,7 +96,7 @@
             transform: translate(-50%, -50%);
             width: 100%;
             height: 100%;
-            border: 2px solid #4CAF50;
+            border: 2px solid #ffffff;
             border-radius: 50%;
             opacity: 0;
         }
@@ -127,7 +128,7 @@
         
         .in-call-text {
             display: none;
-            color: #4CAF50;
+            color: #ffffff;
             font-weight: bold;
             margin: 10px 0;
         }
@@ -150,12 +151,12 @@
         }
         
         .start-call {
-            background-color: #4CAF50;
+            background-color: #00e758;
             color: white;
         }
         
         .cancel-call {
-            background-color: #f44336;
+            background-color: #acacac;
             color: white;
         }
         
@@ -169,6 +170,15 @@
             cursor: pointer;
             font-weight: bold;
             display: none;
+        }
+
+        /* Timer style */
+        .call-timer {
+            display: none;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            margin: 10px 0;
         }
         
         #responseContainer {
@@ -200,10 +210,11 @@
     <div class="call-controls">
         <div class="call-ended-container">
             <div class="call-ended-text">Call Ended</div>
-            <button class="close-button">Close</button>
+            <button class="close-button" onClick="closeEndCallUI()">Close</button>
         </div>
         <button class="start-call">Start Call</button>
         <button class="cancel-call">Cancel</button>
+        <div class="call-timer">00:00</div>
         <div class="profile-container">
             <img src="./iconCall.png" alt="Profile" class="profile-icon">
             <div class="wave-circle"></div>
@@ -225,6 +236,8 @@
         let isRecording = false;
         let mediaRecorder;
         let socket;
+        let timerInterval;
+        let startTime;
         const recordButton = document.getElementById('recordButton');
         const callControls = document.querySelector('.call-controls');
         const startCallButton = document.querySelector('.start-call');
@@ -238,6 +251,30 @@
         const callEndedContainer = document.querySelector('.call-ended-container');
         const callEndedText = document.querySelector('.call-ended-text');
         const closeButton = document.querySelector('.close-button');
+        const callTimer = document.querySelector('.call-timer');
+
+        function updateTimer() {
+            const now = Date.now();
+            const diff = Math.floor((now - startTime) / 1000); // Convert to seconds
+            const minutes = Math.floor(diff / 60);
+            const seconds = diff % 60;
+            callTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            callTimer.style.display = 'block';
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            callTimer.style.display = 'none';
+            callTimer.textContent = '00:00';
+        }
 
         // Previous functions remain the same
         function startWaveAnimation() {
@@ -294,6 +331,7 @@
 
         function showEndCallUI() {
             console.log("showEndCallUI cal")
+            stopTimer();
             // Hide all other elements
             startCallButton.style.display = 'none';
             cancelCallButton.style.display = 'none';
@@ -308,17 +346,7 @@
             closeButton.style.display = 'block';
         }
 
-        async function endCall() {
-            showEndCallUI();
-
-            playEndCallSound();
-
-            setTimeout(()=>{
-                window.location.reload();
-            },3000)
-
-        }
-
+        
         function addResponse(response, audioData) {
             const responseElement = document.createElement('div');
             responseElement.className = 'response-item';
@@ -332,6 +360,7 @@
         }
 
         function showError() {
+            stopTimer();
             startCallButton.style.display = 'block';
             cancelCallButton.style.display = 'block';
             inCallText.style.display = 'none';
@@ -425,6 +454,7 @@
             endCallButton.style.display = 'block';
             callErrorText.style.display = 'none';
             callEndedContainer.style.display = 'none';
+            startTimer();
             startRecording();
         });
 
@@ -437,6 +467,17 @@
         closeButton.addEventListener('click', () => {
             callControls.style.display = 'none';
         });
+
+        async function endCall() {
+            showEndCallUI();
+
+            playEndCallSound();
+
+        }
+
+        function closeEndCallUI(){
+            window.location.reload();
+        }
 
         // endCallButton.addEventListener('click', endCall);
     </script>
