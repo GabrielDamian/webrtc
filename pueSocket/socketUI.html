@@ -212,7 +212,7 @@
         </div>
         <div class="in-call-text">In Call</div>
         <div class="call-error-text">Call Error</div>
-        <button class="end-call-button">
+        <button class="end-call-button" onclick="endCall()">
             <img src="https://cdn-icons-png.flaticon.com/512/14025/14025253.png" alt="End Call">
         </button>
     </div>
@@ -293,6 +293,7 @@
         }
 
         function showEndCallUI() {
+            console.log("showEndCallUI cal")
             // Hide all other elements
             startCallButton.style.display = 'none';
             cancelCallButton.style.display = 'none';
@@ -308,12 +309,14 @@
         }
 
         async function endCall() {
-            if (socket) {
-                socket.close();
-            }
-            isRecording = false;
             showEndCallUI();
+
             playEndCallSound();
+
+            setTimeout(()=>{
+                window.location.reload();
+            },3000)
+
         }
 
         function addResponse(response, audioData) {
@@ -435,7 +438,7 @@
             callControls.style.display = 'none';
         });
 
-        endCallButton.addEventListener('click', endCall);
+        // endCallButton.addEventListener('click', endCall);
     </script>
 </body>
 </html>
