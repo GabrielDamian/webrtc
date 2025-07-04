@@ -37,7 +37,7 @@
             display: none;
             color: #f44336;
             font-weight: bold;
-            margin-top: 10px;
+            margin: 10px 0;
         }
         /* Rest of the existing styles */
         #recordButton {
@@ -159,6 +159,18 @@
             color: white;
         }
         
+        .close-button {
+            margin-top: 10px;
+            padding: 8px 20px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: none;
+        }
+        
         #responseContainer {
             width: 80%;
             max-width: 600px;
@@ -175,6 +187,10 @@
             padding: 10px;
             border-bottom: 1px solid #eee;
         }
+
+        .call-ended-container {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -182,6 +198,10 @@
         <img src="https://cdn-icons-png.flaticon.com/512/597/597177.png" alt="Phone">
     </button>
     <div class="call-controls">
+        <div class="call-ended-container">
+            <div class="call-ended-text">Call Ended</div>
+            <button class="close-button">Close</button>
+        </div>
         <button class="start-call">Start Call</button>
         <button class="cancel-call">Cancel</button>
         <div class="profile-container">
@@ -192,7 +212,6 @@
         </div>
         <div class="in-call-text">In Call</div>
         <div class="call-error-text">Call Error</div>
-        <div class="call-ended-text">Call Ended</div>
         <button class="end-call-button">
             <img src="https://cdn-icons-png.flaticon.com/512/14025/14025253.png" alt="End Call">
         </button>
@@ -216,7 +235,9 @@
         const responseContainer = document.getElementById('responseContainer');
         const waveCircles = document.querySelectorAll('.wave-circle');
         const endCallButton = document.querySelector('.end-call-button');
+        const callEndedContainer = document.querySelector('.call-ended-container');
         const callEndedText = document.querySelector('.call-ended-text');
+        const closeButton = document.querySelector('.close-button');
 
         // Previous functions remain the same
         function startWaveAnimation() {
@@ -272,10 +293,18 @@
         }
 
         function showEndCallUI() {
+            // Hide all other elements
+            startCallButton.style.display = 'none';
+            cancelCallButton.style.display = 'none';
             inCallText.style.display = 'none';
             profileContainer.style.display = 'none';
             endCallButton.style.display = 'none';
+            callErrorText.style.display = 'none';
+
+            // Show only the call ended container with text and close button
+            callEndedContainer.style.display = 'block';
             callEndedText.style.display = 'block';
+            closeButton.style.display = 'block';
         }
 
         async function endCall() {
@@ -312,7 +341,7 @@
         async function startRecording() {
             try {
                 callErrorText.style.display = 'none';
-                callEndedText.style.display = 'none';
+                callEndedContainer.style.display = 'none';
                 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
@@ -392,14 +421,18 @@
             profileContainer.style.display = 'block';
             endCallButton.style.display = 'block';
             callErrorText.style.display = 'none';
-            callEndedText.style.display = 'none';
+            callEndedContainer.style.display = 'none';
             startRecording();
         });
 
         cancelCallButton.addEventListener('click', () => {
             callControls.style.display = 'none';
             callErrorText.style.display = 'none';
-            callEndedText.style.display = 'none';
+            callEndedContainer.style.display = 'none';
+        });
+
+        closeButton.addEventListener('click', () => {
+            callControls.style.display = 'none';
         });
 
         endCallButton.addEventListener('click', endCall);
