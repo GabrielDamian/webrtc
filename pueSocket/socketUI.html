@@ -2,9 +2,8 @@
 <html>
 <head>
     <title>Audio Transcribe</title>
-    <!-- Previous styles remain the same -->
     <style>
-        /* Previous styles unchanged */
+        /* Previous styles remain the same until new additions */
         body {
             display: flex;
             flex-direction: column;
@@ -15,6 +14,32 @@
             font-family: Arial, sans-serif;
             background-color: #f0f2f5;
         }
+        /* ... other existing styles ... */
+        .end-call-button {
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+        }
+        .end-call-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .call-ended-text {
+            display: none;
+            color: #f44336;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        /* Rest of the existing styles */
         #recordButton {
             width: 50px;
             height: 50px;
@@ -36,103 +61,119 @@
             display: none;
             position: absolute;
             top: 80px;
-            width: 100px;
-            height: 200px;
+            width: 200px;
+            height: 300px;
             background-color: white;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             padding: 15px;
             text-align: center;
         }
-        .call-controls button {
-            width: 90%;
+        
+        /* New styles for in-call UI */
+        .profile-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin: 20px auto;
+            display: none;
+        }
+        
+        .profile-icon {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .wave-circle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border: 2px solid #4CAF50;
+            border-radius: 50%;
+            opacity: 0;
+        }
+        
+        .wave-circle.animate {
+            animation: wave 2s infinite;
+        }
+        
+        @keyframes wave {
+            0% {
+                width: 100%;
+                height: 100%;
+                opacity: 0.8;
+            }
+            100% {
+                width: 200%;
+                height: 200%;
+                opacity: 0;
+            }
+        }
+        
+        .wave-circle:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+        
+        .wave-circle:nth-child(3) {
+            animation-delay: 1s;
+        }
+        
+        .in-call-text {
+            display: none;
+            color: #4CAF50;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .call-error-text {
+            display: none;
+            color: #f44336;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .start-call, .cancel-call {
+            width: 100%;
             padding: 10px;
             margin: 5px 0;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            font-weight: bold;
         }
+        
         .start-call {
-            background-color: #1cad48;
+            background-color: #4CAF50;
             color: white;
         }
+        
         .cancel-call {
             background-color: #f44336;
             color: white;
         }
-        .in-call-text {
-            display: none;
-            color: #4CAF50;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        .call-error-text {
-            display: none;
-            color: #f44336;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        .profile-container {
-            display: none;
-            position: relative;
-            width: 60px;
-            height: 60px;
-            margin: 10px auto;
-        }
-        .profile-icon {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            position: relative;
-            z-index: 2;
-        }
-        .wave-circle {
-            position: absolute;
-            border: 2px solid #e40002;
-            border-radius: 50%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            opacity: 0;
-            pointer-events: none;
-        }
-        @keyframes waveAnimation {
-            0% {
-                width: 60px;
-                height: 60px;
-                opacity: 0.8;
-            }
-            100% {
-                width: 90px;
-                height: 90px;
-                opacity: 0;
-            }
-        }
-        .wave-circle.animate {
-            animation: waveAnimation 2s infinite;
-        }
-        .wave-circle:nth-child(2) {
-            animation-delay: 0.5s;
-        }
-        .wave-circle:nth-child(3) {
-            animation-delay: 1s;
-        }
+        
         #responseContainer {
+            width: 80%;
+            max-width: 600px;
             margin-top: 20px;
             padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            min-width: 300px;
-            min-height: 100px;
             background-color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
         }
+        
         .response-item {
-            margin: 10px 0;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 10px;
+            border-bottom: 1px solid #eee;
         }
     </style>
 </head>
@@ -151,13 +192,17 @@
         </div>
         <div class="in-call-text">In Call</div>
         <div class="call-error-text">Call Error</div>
+        <div class="call-ended-text">Call Ended</div>
+        <button class="end-call-button">
+            <img src="https://cdn-icons-png.flaticon.com/512/14025/14025253.png" alt="End Call">
+        </button>
     </div>
     <div id="responseContainer">
         <h3>Server Responses</h3>
     </div>
 
     <script>
-        // JavaScript remains unchanged
+        // Previous variable declarations
         let isRecording = false;
         let mediaRecorder;
         let socket;
@@ -170,7 +215,10 @@
         const profileContainer = document.querySelector('.profile-container');
         const responseContainer = document.getElementById('responseContainer');
         const waveCircles = document.querySelectorAll('.wave-circle');
+        const endCallButton = document.querySelector('.end-call-button');
+        const callEndedText = document.querySelector('.call-ended-text');
 
+        // Previous functions remain the same
         function startWaveAnimation() {
             waveCircles.forEach(wave => {
                 wave.classList.add('animate');
@@ -205,6 +253,40 @@
             });
         }
 
+        function playEnterCallSound() {
+            return new Promise((resolve) => {
+                const enterCallAudio = new Audio('./enterCall.mp3');
+                enterCallAudio.addEventListener('ended', resolve);
+                enterCallAudio.play().catch(error => {
+                    console.error('Error playing enter call sound:', error);
+                    resolve();
+                });
+            });
+        }
+
+        function playEndCallSound() {
+            const endCallAudio = new Audio('./endCall.mp3');
+            endCallAudio.play().catch(error => {
+                console.error('Error playing end call sound:', error);
+            });
+        }
+
+        function showEndCallUI() {
+            inCallText.style.display = 'none';
+            profileContainer.style.display = 'none';
+            endCallButton.style.display = 'none';
+            callEndedText.style.display = 'block';
+        }
+
+        async function endCall() {
+            if (socket) {
+                socket.close();
+            }
+            isRecording = false;
+            showEndCallUI();
+            playEndCallSound();
+        }
+
         function addResponse(response, audioData) {
             const responseElement = document.createElement('div');
             responseElement.className = 'response-item';
@@ -222,6 +304,7 @@
             cancelCallButton.style.display = 'block';
             inCallText.style.display = 'none';
             profileContainer.style.display = 'none';
+            endCallButton.style.display = 'none';
             callErrorText.style.display = 'block';
             stopWaveAnimation();
         }
@@ -229,6 +312,8 @@
         async function startRecording() {
             try {
                 callErrorText.style.display = 'none';
+                callEndedText.style.display = 'none';
+                
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         sampleRate: 16000,
@@ -293,36 +378,31 @@
             }
         }
 
-        function stopRecording() {
-            if (socket) {
-                socket.close();
-            }
-            isRecording = false;
-            inCallText.style.display = 'none';
-            callErrorText.style.display = 'none';
-            profileContainer.style.display = 'none';
-            startCallButton.style.display = 'block';
-            cancelCallButton.style.display = 'block';
-            stopWaveAnimation();
-        }
-
         recordButton.addEventListener('click', () => {
             callControls.style.display = callControls.style.display === 'none' ? 'block' : 'none';
         });
 
-        startCallButton.addEventListener('click', () => {
+        startCallButton.addEventListener('click', async () => {
             startCallButton.style.display = 'none';
             cancelCallButton.style.display = 'none';
+            
+            await playEnterCallSound();
+            
             inCallText.style.display = 'block';
             profileContainer.style.display = 'block';
+            endCallButton.style.display = 'block';
             callErrorText.style.display = 'none';
+            callEndedText.style.display = 'none';
             startRecording();
         });
 
         cancelCallButton.addEventListener('click', () => {
             callControls.style.display = 'none';
             callErrorText.style.display = 'none';
+            callEndedText.style.display = 'none';
         });
+
+        endCallButton.addEventListener('click', endCall);
     </script>
 </body>
 </html>
