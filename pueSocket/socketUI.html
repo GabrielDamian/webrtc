@@ -2,7 +2,9 @@
 <html>
 <head>
     <title>Audio Transcribe</title>
+    <!-- Previous styles remain the same -->
     <style>
+        /* Previous styles unchanged */
         body {
             display: flex;
             flex-direction: column;
@@ -51,7 +53,7 @@
             cursor: pointer;
         }
         .start-call {
-            background-color: #4CAF50;
+            background-color: #1cad48;
             color: white;
         }
         .cancel-call {
@@ -62,13 +64,58 @@
             display: none;
             color: #4CAF50;
             font-weight: bold;
-            margin-top: 20px;
+            margin-top: 10px;
         }
         .call-error-text {
             display: none;
             color: #f44336;
             font-weight: bold;
-            margin-top: 20px;
+            margin-top: 10px;
+        }
+        .profile-container {
+            display: none;
+            position: relative;
+            width: 60px;
+            height: 60px;
+            margin: 10px auto;
+        }
+        .profile-icon {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            z-index: 2;
+        }
+        .wave-circle {
+            position: absolute;
+            border: 2px solid #e40002;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        @keyframes waveAnimation {
+            0% {
+                width: 60px;
+                height: 60px;
+                opacity: 0.8;
+            }
+            100% {
+                width: 90px;
+                height: 90px;
+                opacity: 0;
+            }
+        }
+        .wave-circle.animate {
+            animation: waveAnimation 2s infinite;
+        }
+        .wave-circle:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+        .wave-circle:nth-child(3) {
+            animation-delay: 1s;
         }
         #responseContainer {
             margin-top: 20px;
@@ -87,36 +134,6 @@
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .wave-container {
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 10px;
-            gap: 3px;
-        }
-        .wave-bar {
-            width: 3px;
-            height: 20px;
-            background-color: #4CAF50;
-            border-radius: 3px;
-            opacity: 0.5;
-        }
-        .wave-container.playing .wave-bar {
-            animation: wave 1s infinite ease-in-out;
-        }
-        @keyframes wave {
-            0%, 100% { height: 20px; }
-            50% { height: 40px; }
-        }
-        .wave-container .wave-bar:nth-child(1) { animation-delay: 0.0s; }
-        .wave-container .wave-bar:nth-child(2) { animation-delay: 0.1s; }
-        .wave-container .wave-bar:nth-child(3) { animation-delay: 0.2s; }
-        .wave-container .wave-bar:nth-child(4) { animation-delay: 0.3s; }
-        .wave-container .wave-bar:nth-child(5) { animation-delay: 0.4s; }
-        .wave-container .wave-bar:nth-child(6) { animation-delay: 0.5s; }
-        .wave-container .wave-bar:nth-child(7) { animation-delay: 0.6s; }
-        .wave-container .wave-bar:nth-child(8) { animation-delay: 0.7s; }
     </style>
 </head>
 <body>
@@ -126,6 +143,12 @@
     <div class="call-controls">
         <button class="start-call">Start Call</button>
         <button class="cancel-call">Cancel</button>
+        <div class="profile-container">
+            <img src="./iconCall.png" alt="Profile" class="profile-icon">
+            <div class="wave-circle"></div>
+            <div class="wave-circle"></div>
+            <div class="wave-circle"></div>
+        </div>
         <div class="in-call-text">In Call</div>
         <div class="call-error-text">Call Error</div>
     </div>
@@ -134,6 +157,7 @@
     </div>
 
     <script>
+        // JavaScript remains unchanged
         let isRecording = false;
         let mediaRecorder;
         let socket;
@@ -143,62 +167,63 @@
         const cancelCallButton = document.querySelector('.cancel-call');
         const inCallText = document.querySelector('.in-call-text');
         const callErrorText = document.querySelector('.call-error-text');
+        const profileContainer = document.querySelector('.profile-container');
         const responseContainer = document.getElementById('responseContainer');
+        const waveCircles = document.querySelectorAll('.wave-circle');
 
-        function createWaveAnimation() {
-            const waveContainer = document.createElement('div');
-            waveContainer.className = 'wave-container';
-            
-            for (let i = 0; i < 8; i++) {
-                const bar = document.createElement('div');
-                bar.className = 'wave-bar';
-                waveContainer.appendChild(bar);
-            }
-            
-            return waveContainer;
+        function startWaveAnimation() {
+            waveCircles.forEach(wave => {
+                wave.classList.add('animate');
+            });
         }
 
-        function playAudio(audioData, waveContainer) {
+        function stopWaveAnimation() {
+            waveCircles.forEach(wave => {
+                wave.classList.remove('animate');
+            });
+        }
+
+        function playAudio(audioData) {
             const audio = new Audio('data:audio/mp3;base64,' + audioData);
             
             audio.onplay = () => {
-                waveContainer.classList.add('playing');
+                startWaveAnimation();
             };
             
             audio.onended = () => {
-                waveContainer.classList.remove('playing');
+                stopWaveAnimation();
+            };
+
+            audio.onerror = () => {
+                stopWaveAnimation();
+                console.error('Error playing audio');
             };
 
             audio.play().catch(e => {
                 console.error('Error playing audio:', e);
-                waveContainer.classList.remove('playing');
+                stopWaveAnimation();
             });
         }
 
         function addResponse(response, audioData) {
             const responseElement = document.createElement('div');
             responseElement.className = 'response-item';
-            
-            const textElement = document.createElement('div');
-            textElement.textContent = response;
-            responseElement.appendChild(textElement);
-
-            if (audioData) {
-                const waveContainer = createWaveAnimation();
-                responseElement.appendChild(waveContainer);
-                
-                playAudio(audioData, waveContainer);
-            }
-
+            responseElement.textContent = response;
             responseContainer.appendChild(responseElement);
             responseContainer.scrollTop = responseContainer.scrollHeight;
+
+            if (audioData) {
+                playAudio(audioData);
+            }
         }
 
         function showError() {
             startCallButton.style.display = 'block';
             cancelCallButton.style.display = 'block';
             inCallText.style.display = 'none';
+            profileContainer.style.display = 'none';
             callErrorText.style.display = 'block';
+            stopWaveAnimation();
         }
 
         async function startRecording() {
@@ -275,8 +300,10 @@
             isRecording = false;
             inCallText.style.display = 'none';
             callErrorText.style.display = 'none';
+            profileContainer.style.display = 'none';
             startCallButton.style.display = 'block';
             cancelCallButton.style.display = 'block';
+            stopWaveAnimation();
         }
 
         recordButton.addEventListener('click', () => {
@@ -287,6 +314,7 @@
             startCallButton.style.display = 'none';
             cancelCallButton.style.display = 'none';
             inCallText.style.display = 'block';
+            profileContainer.style.display = 'block';
             callErrorText.style.display = 'none';
             startRecording();
         });
