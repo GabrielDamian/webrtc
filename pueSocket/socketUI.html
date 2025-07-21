@@ -35,7 +35,7 @@
         }
         .call-ended-text {
             display: none;
-            color: #ffffff;
+            color: black;
             font-weight: bold;
             margin: 10px 0;
         }
@@ -67,8 +67,6 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             padding: 15px;
             text-align: center;
-            background: #E40002;
-            background: linear-gradient(90deg, rgba(228, 0, 2, 1) 0%, rgba(255, 153, 155, 1) 100%);
         }
         
         /* New styles for in-call UI */
@@ -77,6 +75,7 @@
             width: 80px;
             height: 80px;
             margin: 20px auto;
+            margin-top: -130px;
             display: none;
         }
         
@@ -139,27 +138,70 @@
             font-weight: bold;
             margin: 10px 0;
         }
-        
-        .start-call, .cancel-call {
-            width: 100%;
-            padding: 10px;
-            margin: 5px 0;
+        .contact-widget
+        {
+            display: flex;
+            justify-content: space-between;
+            background-color: rgb(238, 238, 238);
+            border-radius: 10px;
+            padding: 5px;
+        }
+        .contact-widget-left
+        {
+            display: flex;
+            align-items: center;
+        }
+        .contact-widget-left img {
+            width: 35px;
+            height: 35px;
+            object-fit: contain;
+            margin-right: 15px;
+        }
+        .back-home
+        {
+            border: 1px solid;
+            margin-top: 200px;
+            background-color: none;
+            outline: none;
             border: none;
-            border-radius: 5px;
+        }
+        .back-home img 
+        {
+            height: 30px;
+            width: 30px;
+            object-fit: contain;
+        }
+        .calling-widget
+        {
+            display: none;;
+        }
+        .cancel-call
+        {
+            border: none;
+            outline: none;
+            background-color: transparent;
+        }
+        .cancel-call:hover 
+        {
+            transform: scale(1.1);
+            transition: all 0.3s ease;
             cursor: pointer;
-            font-weight: bold;
         }
-        
         .start-call {
-            background-color: #00e758;
-            color: white;
+            border: none;
+            outline: none;
+            background-color: transparent;
         }
-        
-        .cancel-call {
-            background-color: #acacac;
-            color: white;
+        .start-call:hover 
+        {
+            transform: scale(1.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
-        
+        .start-call img {
+            width: 20px;
+            height: 20px;
+        }
         .close-button {
             margin-top: 10px;
             padding: 8px 20px;
@@ -177,8 +219,8 @@
             display: none;
             font-size: 16px;
             font-weight: bold;
-            color: #ffffff;
-            margin: 10px 0;
+            color: black;
+            margin-top: -60px;
         }
         
         #responseContainer {
@@ -200,6 +242,10 @@
 
         .call-ended-container {
             display: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
         }
     </style>
 </head>
@@ -212,8 +258,26 @@
             <div class="call-ended-text">Call Ended</div>
             <button class="close-button" onClick="closeEndCallUI()">Close</button>
         </div>
-        <button class="start-call">Start Call</button>
-        <button class="cancel-call">Cancel</button>
+        <div
+            class="contact-widget"
+        >
+            <div class="contact-widget-left">
+                 <img src="./iconCall.png" alt="Profile" class="profile-icon">
+                <p>Tobi</p>
+            </div>
+             <button class="start-call">
+                    <img src="https://cdn-icons-png.flaticon.com/512/16076/16076069.png" alt="Start Call">
+                </button>
+        </div>
+        <div class="calling-widget">
+            <p>Calling...</p>
+        </div>
+          <div class="back-home">
+            <button class="cancel-call">
+                <img src="https://cdn-icons-png.flaticon.com/512/20/20176.png" alt="Cancel Call">
+            </button>   
+        </div>
+        
         <div class="call-timer">00:00</div>
         <div class="profile-container">
             <img src="./iconCall.png" alt="Profile" class="profile-icon">
@@ -241,6 +305,8 @@
         const recordButton = document.getElementById('recordButton');
         const callControls = document.querySelector('.call-controls');
         const startCallButton = document.querySelector('.start-call');
+        const contactWidget = document.querySelector('.contact-widget');
+        const callingWidget = document.querySelector('.calling-widget');
         const cancelCallButton = document.querySelector('.cancel-call');
         const inCallText = document.querySelector('.in-call-text');
         const callErrorText = document.querySelector('.call-error-text');
@@ -334,6 +400,7 @@
             stopTimer();
             // Hide all other elements
             startCallButton.style.display = 'none';
+            contactWidget.style.display = 'none';
             cancelCallButton.style.display = 'none';
             inCallText.style.display = 'none';
             profileContainer.style.display = 'none';
@@ -341,7 +408,7 @@
             callErrorText.style.display = 'none';
 
             // Show only the call ended container with text and close button
-            callEndedContainer.style.display = 'block';
+            callEndedContainer.style.display = 'flex';
             callEndedText.style.display = 'block';
             closeButton.style.display = 'block';
         }
@@ -445,10 +512,15 @@
 
         startCallButton.addEventListener('click', async () => {
             startCallButton.style.display = 'none';
+            contactWidget.style.display = 'none';
             cancelCallButton.style.display = 'none';
+
+            callingWidget.style.display = 'block';
             
             await playEnterCallSound();
             
+            callingWidget.style.display = 'none';
+
             inCallText.style.display = 'block';
             profileContainer.style.display = 'block';
             endCallButton.style.display = 'block';
